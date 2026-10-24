@@ -69,11 +69,29 @@ function getSmartFallback(query: string): string {
 }
 
 // Call Google Gemini API
-async function callGemini(apiKey: string, messages: any[]) {
-  const contents = messages.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
+async function callGemini(apiKey: string, messages: any[], lastUserMsg: string) {
+  // Ensure Gemini multiturn alternates between 'user' and 'model'
+  const contents: any[] = [];
+  for (const m of messages) {
+    const role = m.role === "assistant" || m.sender === "bot" ? "model" : "user";
+    const text = (m.content || m.text || "").trim();
+    if (!text) continue;
+
+    if (contents.length > 0 && contents[contents.length - 1].role === role) {
+      contents[contents.length - 1].parts.push({ text });
+    } else {
+      contents.push({ role, parts: [{ text }] });
+    }
+  }
+
+  // Ensure first turn is from user
+  while (contents.length > 0 && contents[0].role !== "user") {
+    contents.shift();
+  }
+
+  if (contents.length === 0) {
+    contents.push({ role: "user", parts: [{ text: lastUserMsg || "Hello" }] });
+  }
 
   const payload = {
     system_instruction: {
@@ -92,7 +110,7 @@ async function callGemini(apiKey: string, messages: any[]) {
   for (const model of models) {
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -106,6 +124,9 @@ async function callGemini(apiKey: string, messages: any[]) {
         if (text) {
           return { text, model: `gemini (${model})` };
         }
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        console.warn(`Gemini ${model} HTTP ${res.status}:`, errJson);
       }
     } catch (e) {
       console.warn(`Gemini model ${model} attempt failed:`, e);
@@ -180,11 +201,11 @@ export async function POST(req: Request) {
         : process.env.GEMINI_API_KEY;
 
     if (geminiKey) {
-      const geminiResult = await callGemini(geminiKey, messages);
+      const geminiResult = await callGemini(geminiKey, messages, lastUserMsg);
       if (geminiResult) {
         return NextResponse.json({
           reply: geminiResult.text,
-          source: "gemini",
+          source: geminiResult.model,
         });
       }
     }
