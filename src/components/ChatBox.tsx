@@ -165,28 +165,30 @@ export default function ChatBox() {
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-graphite via-smoke to-graphite border border-white/15 text-white shadow-2xl flex items-center justify-center hover:scale-105 hover:border-ember/60 transition-all duration-300 group focus:outline-none"
+          className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-graphite via-smoke to-graphite border border-white/15 text-white shadow-2xl flex items-center justify-center hover:scale-105 hover:border-ember/60 transition-all duration-300 group focus:outline-none overflow-hidden"
           aria-label={isOpen ? "Close chat box" : "Open chat box"}
           aria-expanded={isOpen}
         >
           {/* Outer glow */}
-          <span className="absolute inset-0 rounded-full bg-ember/25 blur-md group-hover:bg-ember/50 transition-colors" />
+          <span className="absolute inset-0 rounded-full bg-ember/25 blur-md group-hover:bg-ember/50 transition-colors pointer-events-none" />
 
           {/* Active online dot */}
-          <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-void flex items-center justify-center z-10">
+          <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-void flex items-center justify-center z-20">
             <span className="w-1.5 h-1.5 rounded-full bg-white" />
           </span>
 
-          <span className="relative z-10">
+          <span className="relative z-10 w-full h-full flex items-center justify-center">
             {isOpen ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             ) : (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
+              <img
+                src="/images/avatar.png"
+                alt="Ayush Das Avatar"
+                className="w-full h-full object-cover object-top scale-105"
+              />
             )}
           </span>
         </button>
@@ -202,8 +204,12 @@ export default function ChatBox() {
           {/* Header */}
           <div className="px-5 py-3.5 bg-white/[0.04] border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-ember to-ember-bright flex items-center justify-center text-white font-bold text-xs tracking-wider border border-white/20 shadow-md">
-                AD
+              <div className="relative w-9 h-9 rounded-full overflow-hidden border border-white/20 shadow-md ring-1 ring-ember/50 shrink-0 bg-graphite">
+                <img
+                  src="/images/avatar.png"
+                  alt="Ayush Das Avatar"
+                  className="w-full h-full object-cover object-top"
+                />
               </div>
               <div>
                 <div className="flex items-center gap-2">
