@@ -95,9 +95,22 @@ export default function Contact() {
 
     setStatus("sending");
 
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=ayushdps2020@gmail.com&su=${encodeURIComponent(
+      `Portfolio Inquiry from ${formState.name}`
+    )}&body=${encodeURIComponent(
+      `Hi Ayush,\n\nName: ${formState.name}\nEmail: ${formState.email}\n\nMessage:\n${formState.message}`
+    )}`;
+
     try {
-      // Send directly to backend contact route
-      const res = await fetch("/api/contact", {
+      // 1. Open Gmail Web compose window directly in new tab
+      window.open(gmailUrl, "_blank");
+    } catch (e) {
+      console.warn("Popup blocked or direct launch:", e);
+    }
+
+    try {
+      // 2. Also forward to backend contact route
+      fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -105,17 +118,10 @@ export default function Contact() {
           email: formState.email.trim(),
           message: formState.message.trim(),
         }),
-      });
+      }).catch(() => {});
+    } catch {}
 
-      if (!res.ok) {
-        throw new Error("Dispatch failed");
-      }
-
-      setStatus("sent");
-    } catch {
-      // Even if network route hiccups, switch to sent state with direct email actions
-      setStatus("sent");
-    }
+    setStatus("sent");
   };
 
   const copyToClipboard = () => {
@@ -273,9 +279,9 @@ export default function Contact() {
                   </svg>
                 </div>
                 <div>
-                  <h4 className="text-2xl font-bold text-white mb-2">Message Sent!</h4>
+                  <h4 className="text-2xl font-bold text-white mb-2">Message Ready &amp; Dispatched!</h4>
                   <p className="text-sm text-ash max-w-sm mx-auto leading-relaxed">
-                    Thank you <span className="text-white font-medium">{formState.name || "there"}</span>! Your inquiry has been received. Ayush has been notified and will reply to <span className="text-white font-medium">{formState.email}</span> shortly.
+                    Thank you <span className="text-white font-medium">{formState.name || "there"}</span>! We&apos;ve opened Gmail with your message addressed to <span className="text-white font-medium">ayushdps2020@gmail.com</span>. Click below if you need to re-open Gmail or copy the details:
                   </p>
                 </div>
 

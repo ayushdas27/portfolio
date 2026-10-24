@@ -26,7 +26,7 @@ Key verified details about Ayush Das:
 
 Behavioral Guidelines:
 1. When asked about Ayush, his background, projects, skills, college, awards, or contact info, respond accurately based on the verified facts above.
-2. When asked out-of-the-box questions (coding, algorithms, architecture, science, creative writing, or general curiosity), answer thoroughly, helpfully, and insightfully as an advanced AI assistant powered by Claude.
+2. When asked out-of-the-box questions (coding, algorithms, architecture, science, math, creative writing, or general curiosity), answer thoroughly, helpfully, and insightfully.
 3. Keep answers clear, conversational, and nicely structured. Use code blocks or bullet points when helpful.
 4. If a visitor wants to collaborate, hire, or connect with Ayush, direct them to ayushdps2020@gmail.com or his LinkedIn profile.`;
 
@@ -34,7 +34,7 @@ function getSmartFallback(query: string): string {
   const q = query.toLowerCase();
 
   if (q.includes("agro") || q.includes("farm") || q.includes("agriculture")) {
-    return "Agro Twin is Ayush's farm decision-support platform leveraging satellite data, AI, and simulation for sustainable farming. It was awarded 3rd Prize at GEOIMPATHON 1.0! You can check the live demo at https://agro-twin-xi.vercel.app/";
+    return "Agro Twin is Ayush's farm decision-support platform leveraging satellite data, AI, and simulation for sustainable farming. It was awarded 3rd Prize at GEOIMPATHON 1.0! Check the live demo at https://agro-twin-xi.vercel.app/";
   }
 
   if (q.includes("lunar") || q.includes("align") || q.includes("moon") || q.includes("chandrayaan")) {
@@ -68,54 +68,65 @@ function getSmartFallback(query: string): string {
   return `Thanks for asking! I'm Ayush's AI Assistant. Ayush specializes in AI/ML, computer vision, and software engineering at SRMIST. Feel free to ask about his projects (Agro Twin, Lunar Align, Urban Mobility), his tech stack, or connect with him at ayushdps2020@gmail.com!`;
 }
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const messages = body.messages || [];
-    const userApiKey = body.apiKey; // Optional client-supplied key
+// Call Google Gemini API
+async function callGemini(apiKey: string, messages: any[]) {
+  const contents = messages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
 
-    const apiKey = userApiKey || process.env.ANTHROPIC_API_KEY;
+  const payload = {
+    system_instruction: {
+      parts: [{ text: SYSTEM_PROMPT }],
+    },
+    contents: contents,
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 1024,
+    },
+  };
 
-    // Filter and format message history for Claude API
-    const formattedMessages = messages
-      .filter((m: any) => (m.content || m.text) && (m.role || m.sender))
-      .map((m: any) => ({
-        role: m.role === "assistant" || m.sender === "bot" ? "assistant" : "user",
-        content: m.content || m.text,
-      }));
+  // Try gemini-2.0-flash first
+  const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
 
-    const lastUserMsg =
-      formattedMessages.filter((m: any) => m.role === "user").pop()?.content || "";
+  for (const model of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
 
-    // If no API key is provided, use the smart local assistant engine
-    if (!apiKey) {
-      const fallbackReply = getSmartFallback(lastUserMsg);
-      return NextResponse.json({
-        reply: fallbackReply,
-        source: "portfolio-assistant",
-        info: "To enable live Claude 3.5 Sonnet for general out-of-the-box queries, add ANTHROPIC_API_KEY in .env.local or Vercel environment variables.",
-      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          return { text, model: `gemini (${model})` };
+        }
+      }
+    } catch (e) {
+      console.warn(`Gemini model ${model} attempt failed:`, e);
     }
+  }
 
-    // Call Anthropic Claude API (claude-3-5-sonnet-20241022 or fallback to claude-3-haiku)
-    const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT,
-        messages: formattedMessages.length > 0 ? formattedMessages : [{ role: "user", content: lastUserMsg }],
-      }),
-    });
+  return null;
+}
 
-    if (!claudeResponse.ok) {
-      // If sonnet isn't available or rate limited, try haiku as fallback
-      const haikuResponse = await fetch("https://api.anthropic.com/v1/messages", {
+// Call Anthropic Claude API
+async function callClaude(apiKey: string, messages: any[]) {
+  const formattedMessages = messages.map((m) => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: m.content,
+  }));
+
+  const models = ["claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"];
+
+  for (const model of models) {
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "x-api-key": apiKey,
@@ -123,40 +134,82 @@ export async function POST(req: Request) {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          model: "claude-3-haiku-20240307",
+          model,
           max_tokens: 1024,
           system: SYSTEM_PROMPT,
-          messages: formattedMessages.length > 0 ? formattedMessages : [{ role: "user", content: lastUserMsg }],
+          messages: formattedMessages,
         }),
       });
 
-      if (haikuResponse.ok) {
-        const haikuData = await haikuResponse.json();
-        const replyText = haikuData.content?.[0]?.text || getSmartFallback(lastUserMsg);
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.content?.[0]?.text;
+        if (text) {
+          return { text, model: `claude (${model})` };
+        }
+      }
+    } catch (e) {
+      console.warn(`Claude model ${model} attempt failed:`, e);
+    }
+  }
+
+  return null;
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const rawMessages = body.messages || [];
+    const clientKey = body.apiKey?.trim();
+
+    // Standardize messages
+    const messages = rawMessages
+      .filter((m: any) => (m.content || m.text) && (m.role || m.sender))
+      .map((m: any) => ({
+        role: m.role === "assistant" || m.sender === "bot" ? "assistant" : "user",
+        content: (m.content || m.text).trim(),
+      }));
+
+    const lastUserMsg =
+      messages.filter((m: any) => m.role === "user").pop()?.content || "";
+
+    // 1. Try Google Gemini API if key is present
+    const geminiKey =
+      (clientKey && clientKey.startsWith("AIzaSy")) ? clientKey : process.env.GEMINI_API_KEY;
+
+    if (geminiKey) {
+      const geminiResult = await callGemini(geminiKey, messages);
+      if (geminiResult) {
         return NextResponse.json({
-          reply: replyText,
-          source: "claude-haiku",
+          reply: geminiResult.text,
+          source: "gemini",
         });
       }
-
-      // If both fail, gracefully return smart portfolio reply
-      return NextResponse.json({
-        reply: getSmartFallback(lastUserMsg),
-        source: "portfolio-fallback",
-      });
     }
 
-    const data = await claudeResponse.json();
-    const replyText = data.content?.[0]?.text || getSmartFallback(lastUserMsg);
+    // 2. Try Anthropic Claude API if key is present
+    const claudeKey =
+      (clientKey && clientKey.startsWith("sk-ant")) ? clientKey : process.env.ANTHROPIC_API_KEY;
 
+    if (claudeKey) {
+      const claudeResult = await callClaude(claudeKey, messages);
+      if (claudeResult) {
+        return NextResponse.json({
+          reply: claudeResult.text,
+          source: "claude",
+        });
+      }
+    }
+
+    // 3. Fallback to smart knowledge assistant
     return NextResponse.json({
-      reply: replyText,
-      source: "claude-sonnet",
+      reply: getSmartFallback(lastUserMsg),
+      source: "assistant",
     });
   } catch (error: any) {
     console.error("Error in /api/chat:", error);
     return NextResponse.json({
-      reply: "I encountered a brief connection glitch, but I'm still here! You can also reach Ayush directly at ayushdps2020@gmail.com.",
+      reply: "I'm here! Feel free to ask about Ayush's projects, skills, or reach him directly at ayushdps2020@gmail.com.",
       source: "fallback",
     });
   }

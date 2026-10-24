@@ -40,12 +40,13 @@ export default function ChatBox() {
   const [isTyping, setIsTyping] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [showKeyModal, setShowKeyModal] = useState(false);
+  const [activeEngine, setActiveEngine] = useState<string>("AI");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load custom API key from localStorage if saved
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedKey = localStorage.getItem("ayush_portfolio_claude_key") || "";
+      const savedKey = localStorage.getItem("ayush_portfolio_ai_key") || localStorage.getItem("ayush_portfolio_claude_key") || "";
       setApiKey(savedKey);
     }
   }, []);
@@ -54,8 +55,9 @@ export default function ChatBox() {
     setApiKey(key);
     if (typeof window !== "undefined") {
       if (key) {
-        localStorage.setItem("ayush_portfolio_claude_key", key);
+        localStorage.setItem("ayush_portfolio_ai_key", key);
       } else {
+        localStorage.removeItem("ayush_portfolio_ai_key");
         localStorage.removeItem("ayush_portfolio_claude_key");
       }
     }
@@ -107,6 +109,12 @@ export default function ChatBox() {
       }
 
       const data = await res.json();
+      if (data.source?.startsWith("gemini")) {
+        setActiveEngine("Gemini AI");
+      } else if (data.source?.startsWith("claude")) {
+        setActiveEngine("Claude AI");
+      }
+
       const botMessage: Message = {
         id: `bot-${Date.now()}`,
         sender: "bot",
@@ -215,7 +223,7 @@ export default function ChatBox() {
                 <div className="flex items-center gap-2">
                   <h4 className="text-sm font-semibold text-white leading-tight">Ayush Das</h4>
                   <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-ember/20 text-ember-bright border border-ember/30 uppercase tracking-wider">
-                    Claude AI
+                    {activeEngine}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
@@ -229,7 +237,7 @@ export default function ChatBox() {
               <button
                 type="button"
                 onClick={() => setShowKeyModal(!showKeyModal)}
-                title="Configure Claude API Key"
+                title="Configure Gemini or Claude API Key"
                 className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-ash hover:text-white flex items-center justify-center transition-colors"
                 aria-label="API Settings"
               >
@@ -257,14 +265,14 @@ export default function ChatBox() {
           {showKeyModal && (
             <div className="p-3.5 bg-graphite border-b border-white/10 text-xs space-y-2 animate-in fade-in duration-200">
               <div className="flex items-center justify-between text-white font-medium">
-                <span>Claude API Key (Anthropic)</span>
-                <span className="text-[10px] text-ash">Server-side env also supported</span>
+                <span>Gemini or Claude API Key</span>
+                <span className="text-[10px] text-ash">Loaded from .env automatically</span>
               </div>
               <input
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-ant-api03-..."
+                placeholder="AIzaSy... (Gemini) or sk-ant... (Claude)"
                 className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-iron focus:outline-none focus:border-ember/60 font-mono"
               />
               <div className="flex justify-end gap-2 pt-1">
