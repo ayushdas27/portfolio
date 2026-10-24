@@ -86,8 +86,8 @@ async function callGemini(apiKey: string, messages: any[]) {
     },
   };
 
-  // Try gemini-2.0-flash first
-  const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+  // Tested working models for Google AI Studio
+  const models = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-pro-latest"];
 
   for (const model of models) {
     try {
@@ -173,9 +173,11 @@ export async function POST(req: Request) {
     const lastUserMsg =
       messages.filter((m: any) => m.role === "user").pop()?.content || "";
 
-    // 1. Try Google Gemini API if key is present
+    // 1. Try Google Gemini API if key is present (starts with AQ. or AIzaSy or set in env)
     const geminiKey =
-      (clientKey && clientKey.startsWith("AIzaSy")) ? clientKey : process.env.GEMINI_API_KEY;
+      clientKey && (clientKey.startsWith("AIzaSy") || clientKey.startsWith("AQ."))
+        ? clientKey
+        : process.env.GEMINI_API_KEY;
 
     if (geminiKey) {
       const geminiResult = await callGemini(geminiKey, messages);
