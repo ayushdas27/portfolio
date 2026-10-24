@@ -57,25 +57,37 @@ export default function Education() {
   const achieveRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const ctx = gsap.context(() => {
       // Cards reveal
       const cards = document.querySelectorAll(".edu-card");
-      gsap.fromTo(
-        cards,
-        { y: 40, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.8,
-          stagger: 0.1,
-          ease: "expo.out",
-          scrollTrigger: {
-            trigger: sectionRef.current,
-            start: "top 75%",
-            toggleActions: "play none none none",
-          },
-        }
-      );
+      if (prefersReducedMotion) {
+        gsap.set(cards, { opacity: 1, y: 0 });
+      } else {
+        gsap.fromTo(
+          cards,
+          { y: 35, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.8,
+            stagger: 0.1,
+            ease: "expo.out",
+            scrollTrigger: {
+              trigger: sectionRef.current,
+              start: "top 80%",
+              toggleActions: "play none none none",
+              once: true,
+            },
+            onComplete: () => {
+              gsap.set(cards, { clearProps: "transform" });
+            },
+          }
+        );
+      }
 
       // Achievement counters
       if (achieveRef.current) {
@@ -83,6 +95,12 @@ export default function Education() {
         counters.forEach((el) => {
           const endValue = parseInt(el.getAttribute("data-value") || "0");
           const suffix = el.getAttribute("data-suffix") || "";
+
+          if (prefersReducedMotion) {
+            el.textContent = `${endValue}${suffix}`;
+            return;
+          }
+
           const obj = { value: 0 };
 
           gsap.to(obj, {
@@ -96,6 +114,7 @@ export default function Education() {
               trigger: el,
               start: "top 90%",
               toggleActions: "play none none none",
+              once: true,
             },
           });
         });

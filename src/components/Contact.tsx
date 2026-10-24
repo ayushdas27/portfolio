@@ -61,21 +61,34 @@ export default function Contact() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const ctx = gsap.context(() => {
       const elements = document.querySelectorAll(".contact-animate");
+      if (prefersReducedMotion) {
+        gsap.set(elements, { opacity: 1, y: 0 });
+        return;
+      }
+
       gsap.fromTo(
         elements,
-        { y: 50, opacity: 0 },
+        { y: 35, opacity: 0 },
         {
           y: 0,
           opacity: 1,
-          duration: 1,
+          duration: 0.9,
           stagger: 0.1,
           ease: "expo.out",
           scrollTrigger: {
             trigger: sectionRef.current,
-            start: "top 70%",
+            start: "top 75%",
             toggleActions: "play none none none",
+            once: true,
+          },
+          onComplete: () => {
+            gsap.set(elements, { clearProps: "transform" });
           },
         }
       );

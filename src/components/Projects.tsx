@@ -1,7 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { DepthCarousel } from "./DepthCarousel";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 export interface Project {
   id: string;
@@ -88,9 +94,51 @@ export default function Projects() {
   );
 
   const activeProject = PROJECTS[activeCarouselIndex] || PROJECTS[0];
+  const sectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !sectionRef.current) return;
+
+    const prefersReducedMotion =
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const ctx = gsap.context(() => {
+      const cards = sectionRef.current?.querySelectorAll<HTMLElement>(".project-card-item");
+      if (!cards || cards.length === 0) return;
+
+      if (prefersReducedMotion) {
+        cards.forEach((card) => gsap.set(card, { opacity: 1, y: 0 }));
+        return;
+      }
+
+      gsap.fromTo(
+        cards,
+        { y: 35, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.75,
+          stagger: 0.1,
+          ease: "power2.out",
+          scrollTrigger: {
+            trigger: sectionRef.current,
+            start: "top 78%",
+            toggleActions: "play none none none",
+            once: true,
+          },
+          onComplete: () => {
+            cards.forEach((card) => gsap.set(card, { clearProps: "transform" }));
+          },
+        }
+      );
+    }, sectionRef);
+
+    return () => ctx.revert();
+  }, [viewMode]);
 
   return (
     <section
+      ref={sectionRef}
       id="projects"
       className="relative pt-32 pb-24 md:pt-48 md:pb-36 overflow-hidden"
       style={{ fontFamily: "var(--font-poppins), sans-serif" }}
@@ -167,7 +215,7 @@ export default function Projects() {
                 key={project.id}
                 onMouseEnter={() => setHoveredIndex(i)}
                 onMouseLeave={() => setHoveredIndex(null)}
-                className="rounded-2xl lg:rounded-3xl overflow-hidden border border-white/10 group hover:border-white/30 transition-all duration-500 shadow-2xl bg-obsidian/90 flex flex-col justify-between"
+                className="project-card-item rounded-2xl lg:rounded-3xl overflow-hidden border border-white/10 group hover:border-white/30 transition-all duration-500 shadow-2xl bg-obsidian/90 flex flex-col justify-between"
               >
                 <div>
                   {/* Image container with aspect ratio and hover glow */}
@@ -291,7 +339,7 @@ export default function Projects() {
             </div>
 
             {/* Active Project Details Card */}
-            <div className="mt-8 w-full max-w-3xl p-6 sm:p-8 rounded-2xl bg-obsidian/90 border border-white/10 backdrop-blur-md flex flex-col gap-5 shadow-2xl transition-all duration-500">
+            <div className="project-card-item mt-8 w-full max-w-3xl p-6 sm:p-8 rounded-2xl bg-obsidian/90 border border-white/10 backdrop-blur-md flex flex-col gap-5 shadow-2xl transition-all duration-500">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">

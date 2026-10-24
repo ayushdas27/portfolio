@@ -53,12 +53,20 @@ export default function Experience() {
   useEffect(() => {
     if (typeof window === "undefined" || !sectionRef.current) return;
 
+    const prefersReducedMotion =
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const ctx = gsap.context(() => {
       const items = gsap.utils.toArray<HTMLElement>(".exp-item");
+      if (prefersReducedMotion) {
+        items.forEach((item) => gsap.set(item, { opacity: 1, y: 0 }));
+        return;
+      }
+
       items.forEach((item, i) => {
         gsap.fromTo(
           item,
-          { y: 40, opacity: 0 },
+          { y: 35, opacity: 0 },
           {
             y: 0,
             opacity: 1,
@@ -69,6 +77,10 @@ export default function Experience() {
               trigger: item,
               start: "top 85%",
               toggleActions: "play none none none",
+              once: true,
+            },
+            onComplete: () => {
+              gsap.set(item, { clearProps: "transform" });
             },
           }
         );

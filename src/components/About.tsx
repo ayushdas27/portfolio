@@ -84,7 +84,7 @@ export default function About() {
         const cards = statsRef.current.querySelectorAll(".stat-card");
         gsap.fromTo(
           cards,
-          { y: 50, opacity: 0 },
+          { y: 35, opacity: 0 },
           {
             y: 0,
             opacity: 1,
@@ -93,8 +93,9 @@ export default function About() {
             ease: "expo.out",
             scrollTrigger: {
               trigger: statsRef.current,
-              start: "top 80%",
+              start: "top 85%",
               toggleActions: "play none none none",
+              once: true,
             },
           }
         );
@@ -127,43 +128,55 @@ export default function About() {
         }
       }
 
-      // Sequential scroll-triggered timeline items reveal
+      // macOS Genie-inspired alternating timeline cards reveal
       if (timelineRef.current) {
         const items = timelineRef.current.querySelectorAll<HTMLElement>(".timeline-item");
+        const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
 
         if (prefersReducedMotion) {
           items.forEach((item) => {
-            gsap.set(item, { opacity: 1, y: 0, scale: 1, filter: "none" });
+            const card = item.querySelector<HTMLElement>(".journey-card");
+            const dot = item.querySelector<HTMLElement>(".journey-dot");
+            if (card) gsap.set(card, { opacity: 1, x: 0, y: 0, scale: 1, filter: "none" });
+            if (dot) gsap.set(dot, { scale: 1, opacity: 1 });
           });
         } else {
           items.forEach((item, i) => {
-            const card = item.querySelector(".journey-card");
-            const dot = item.querySelector(".journey-dot");
+            const card = item.querySelector<HTMLElement>(".journey-card");
+            const dot = item.querySelector<HTMLElement>(".journey-dot");
 
-            // Staggered sequential delay of ~180ms
-            const staggerDelay = (i % 2) * 0.18;
+            // Alternating entrance:
+            // Card 1 (i=0) enters gently from the left (-50px)
+            // Card 2 (i=1) enters gently from the right (+50px)
+            // Card 3 (i=2) enters gently from the left (-50px)
+            // Card 4 (i=3) enters gently from the right (+50px)
+            // On mobile (<768px), cards are all right of the line, so enter with gentle x: 28px
+            const enterFromLeft = i % 2 === 0;
+            const initialX = isDesktop ? (enterFromLeft ? -50 : 50) : 28;
+            const origin = isDesktop ? (enterFromLeft ? "right center" : "left center") : "left center";
 
-            // Card upward float, fade, scale, and blur-to-sharp
-            if (card) {
+            // Stagger delay between cards (100–160ms)
+            const staggerDelay = i * 0.13;
+
+            // 1. Timeline marker illuminates sequentially with glow
+            if (dot) {
               gsap.fromTo(
-                card,
+                dot,
                 {
-                  opacity: 0,
-                  y: 35,
-                  scale: 0.96,
-                  filter: "blur(6px)",
+                  scale: 0.35,
+                  opacity: 0.3,
+                  filter: "brightness(0.6)",
                 },
                 {
-                  opacity: 1,
-                  y: 0,
                   scale: 1,
-                  filter: "blur(0px)",
-                  duration: 0.85,
+                  opacity: 1,
+                  filter: "brightness(1.25)",
+                  duration: 0.6,
                   delay: staggerDelay,
-                  ease: "power2.out",
+                  ease: "back.out(1.8)",
                   scrollTrigger: {
                     trigger: item,
-                    start: "top 86%",
+                    start: "top 85%",
                     toggleActions: "play none none none",
                     once: true,
                   },
@@ -171,22 +184,37 @@ export default function About() {
               );
             }
 
-            // Connecting timeline dot pop
-            if (dot) {
+            // 2. Genie-inspired subtle unfolding card animation
+            // Subtly expands from compressed state (scaleX: 0.98, scaleY: 0.96) and settles into exact layout position
+            if (card) {
               gsap.fromTo(
-                dot,
-                { scale: 0, opacity: 0 },
+                card,
                 {
-                  scale: 1,
+                  opacity: 0,
+                  x: initialX,
+                  scaleX: 0.98,
+                  scaleY: 0.96,
+                  transformOrigin: origin,
+                  filter: "blur(4px)",
+                },
+                {
                   opacity: 1,
-                  duration: 0.5,
-                  delay: staggerDelay + 0.08,
-                  ease: "back.out(2)",
+                  x: 0,
+                  scaleX: 1,
+                  scaleY: 1,
+                  filter: "blur(0px)",
+                  duration: 0.78,
+                  delay: staggerDelay + 0.05,
+                  ease: "cubic-bezier(0.16, 1, 0.3, 1)",
                   scrollTrigger: {
                     trigger: item,
-                    start: "top 86%",
+                    start: "top 85%",
                     toggleActions: "play none none none",
                     once: true,
+                  },
+                  onComplete: () => {
+                    // Settle precisely in original position and clear transforms for hover styles
+                    gsap.set(card, { clearProps: "transform,filter" });
                   },
                 }
               );
