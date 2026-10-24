@@ -7,10 +7,10 @@ interface Message {
   sender: "bot" | "user";
   text: string;
   time: string;
+  source?: "claude-sonnet" | "claude-haiku" | "portfolio-assistant" | "fallback";
   action?: {
     label: string;
     href?: string;
-    onClick?: () => void;
   };
 }
 
@@ -18,8 +18,9 @@ const INITIAL_MESSAGES: Message[] = [
   {
     id: "welcome-1",
     sender: "bot",
-    text: "Hi there! 👋 I'm Ayush's virtual portfolio assistant. How can I help you today?",
+    text: "Hi there! 👋 I'm Ayush's AI Assistant, powered by Claude. Feel free to ask about Ayush's projects (Agro Twin, Lunar Align, Urban Mobility), research, skills, or any out-of-the-box coding or technical questions!",
     time: "Just now",
+    source: "claude-sonnet",
   },
 ];
 
@@ -27,86 +28,39 @@ const SUGGESTIONS = [
   "Tell me about Agro Twin",
   "What is Lunar Align?",
   "GEOIMPATHON 3rd Prize",
-  "What are your core skills?",
-  "How to get in touch?",
+  "What is your tech stack?",
+  "How can I contact Ayush?",
+  "Explain computer vision in agriculture",
 ];
-
-function getBotReply(query: string): { text: string; action?: { label: string; href?: string } } {
-  const q = query.toLowerCase();
-
-  if (q.includes("agro") || q.includes("farm") || q.includes("agriculture")) {
-    return {
-      text: "Agro Twin is a farm decision-support platform leveraging satellite data, AI, and simulation to help farmers make informed decisions for sustainable agriculture. It was presented at GEOIMPATHON 1.0 where our team secured 3rd Prize!",
-      action: {
-        label: "View Live Demo",
-        href: "https://agro-twin-xi.vercel.app/",
-      },
-    };
-  }
-
-  if (q.includes("lunar") || q.includes("align") || q.includes("moon") || q.includes("chandrayaan")) {
-    return {
-      text: "Lunar Align is an advanced computer vision project for satellite image correspondence across Chandrayaan-2 OHRC and TMC/TMC-2 imagery using RootSIFT, FLANN, and RANSAC for scale- and illumination-invariant matching.",
-      action: {
-        label: "View on GitHub",
-        href: "https://github.com/ayushdas27",
-      },
-    };
-  }
-
-  if (q.includes("urban") || q.includes("mobility") || q.includes("traffic") || q.includes("city")) {
-    return {
-      text: "Urban Mobility Intelligence uses bus-mounted cameras and computer vision to monitor civic road conditions, detecting potholes, congestion, and traffic anomalies in real time.",
-      action: {
-        label: "View on GitHub",
-        href: "https://github.com/ayushdas27/urban-mobility-intelligence-platform",
-      },
-    };
-  }
-
-  if (q.includes("geoimpathon") || q.includes("prize") || q.includes("hackathon") || q.includes("award")) {
-    return {
-      text: "At GEOIMPATHON 1.0, Ayush's team advanced from an online selection round of 64 teams to the offline finals, securing 3rd Prize and a ₹2,000 cash award with the Agro Twin platform!",
-    };
-  }
-
-  if (q.includes("skill") || q.includes("stack") || q.includes("tech") || q.includes("language") || q.includes("python")) {
-    return {
-      text: "Ayush works primarily with Python, C, TypeScript, and SQL. His toolkit includes OpenCV, NumPy, Streamlit, Django, MySQL, Arduino IDE, Git, and GitHub.",
-    };
-  }
-
-  if (q.includes("college") || q.includes("srm") || q.includes("study") || q.includes("degree") || q.includes("education")) {
-    return {
-      text: "Ayush is currently pursuing his B.Tech in Computer Science and Engineering with a specialization in Artificial Intelligence & Machine Learning (AI/ML) at SRM Institute of Science and Technology (SRMIST).",
-    };
-  }
-
-  if (q.includes("contact") || q.includes("email") || q.includes("hire") || q.includes("message") || q.includes("collab") || q.includes("reach")) {
-    return {
-      text: "You can reach Ayush directly via email at ayushdps2020@gmail.com, or connect on LinkedIn and GitHub. Feel free to leave a note here as well!",
-      action: {
-        label: "Send Email Directly",
-        href: "mailto:ayushdps2020@gmail.com?subject=Inquiry%20from%20Portfolio",
-      },
-    };
-  }
-
-  return {
-    text: "Thanks for reaching out! Ayush specializes in AI/ML, computer vision, and software engineering. Would you like to know about his projects (Agro Twin, Lunar Align), technical skills, or send him a direct message?",
-    action: {
-      label: "Email Ayush",
-      href: "mailto:ayushdps2020@gmail.com",
-    },
-  };
-}
 
 export default function ChatBox() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [showKeyModal, setShowKeyModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load custom API key from localStorage if saved
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedKey = localStorage.getItem("ayush_portfolio_claude_key") || "";
+      setApiKey(savedKey);
+    }
+  }, []);
+
+  const saveApiKey = (key: string) => {
+    setApiKey(key);
+    if (typeof window !== "undefined") {
+      if (key) {
+        localStorage.setItem("ayush_portfolio_claude_key", key);
+      } else {
+        localStorage.removeItem("ayush_portfolio_claude_key");
+      }
+    }
+    setShowKeyModal(false);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -118,9 +72,9 @@ export default function ChatBox() {
     }
   }, [messages, isOpen]);
 
-  const handleSend = (textToSend?: string) => {
+  const handleSend = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
-    if (!query) return;
+    if (!query || isTyping) return;
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -129,26 +83,65 @@ export default function ChatBox() {
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     if (!textToSend) setInput("");
     setIsTyping(true);
 
-    setTimeout(() => {
-      const reply = getBotReply(query);
+    try {
+      // Call backend API route connected to Claude
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: newMessages.map((m) => ({
+            role: m.sender === "user" ? "user" : "assistant",
+            content: m.text,
+          })),
+          apiKey: apiKey.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Chat request failed");
+      }
+
+      const data = await res.json();
       const botMessage: Message = {
         id: `bot-${Date.now()}`,
         sender: "bot",
-        text: reply.text,
+        text: data.reply,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        action: reply.action,
+        source: data.source,
+        action:
+          data.reply.toLowerCase().includes("ayushdps2020@gmail.com")
+            ? {
+                label: "Send Email Directly",
+                href: "mailto:ayushdps2020@gmail.com?subject=Portfolio%20Inquiry",
+              }
+            : undefined,
       };
+
       setMessages((prev) => [...prev, botMessage]);
+    } catch {
+      const fallbackMsg: Message = {
+        id: `bot-${Date.now()}`,
+        sender: "bot",
+        text: "Thanks for reaching out! Ayush specializes in AI/ML, computer vision, and software engineering at SRMIST. Feel free to connect directly at ayushdps2020@gmail.com!",
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        action: {
+          label: "Email Ayush",
+          href: "mailto:ayushdps2020@gmail.com",
+        },
+      };
+      setMessages((prev) => [...prev, fallbackMsg]);
+    } finally {
       setIsTyping(false);
-    }, 550);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -163,9 +156,9 @@ export default function ChatBox() {
         aria-label="Chat assistant toggle"
       >
         {!isOpen && (
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-graphite/90 border border-white/10 text-xs text-white/80 shadow-lg backdrop-blur-md animate-fade-in pointer-events-none">
+          <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-graphite/95 border border-white/10 text-xs text-white shadow-xl backdrop-blur-md animate-fade-in pointer-events-none">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Chat with Ayush</span>
+            <span className="font-medium">Claude AI Assistant</span>
           </div>
         )}
 
@@ -176,8 +169,8 @@ export default function ChatBox() {
           aria-label={isOpen ? "Close chat box" : "Open chat box"}
           aria-expanded={isOpen}
         >
-          {/* Subtle outer glow */}
-          <span className="absolute inset-0 rounded-full bg-ember/20 blur-md group-hover:bg-ember/40 transition-colors" />
+          {/* Outer glow */}
+          <span className="absolute inset-0 rounded-full bg-ember/25 blur-md group-hover:bg-ember/50 transition-colors" />
 
           {/* Active online dot */}
           <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-void flex items-center justify-center z-10">
@@ -202,37 +195,90 @@ export default function ChatBox() {
       {/* Floating Chat Modal */}
       {isOpen && (
         <section
-          className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-96 max-h-[580px] h-[520px] rounded-2xl bg-[#0a0a0c]/95 border border-white/15 shadow-2xl backdrop-blur-xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300"
+          className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[410px] max-h-[620px] h-[550px] rounded-2xl bg-[#0a0a0d]/95 border border-white/15 shadow-2xl backdrop-blur-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300"
           style={{ fontFamily: "var(--font-poppins), sans-serif" }}
-          aria-label="Ayush Das Assistant Chatbox"
+          aria-label="Ayush Das Claude AI Assistant"
         >
           {/* Header */}
-          <div className="px-5 py-4 bg-white/5 border-b border-white/10 flex items-center justify-between">
+          <div className="px-5 py-3.5 bg-white/[0.04] border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-ember to-ember-bright flex items-center justify-center text-white font-bold text-xs tracking-wider border border-white/20 shadow-sm">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-ember to-ember-bright flex items-center justify-center text-white font-bold text-xs tracking-wider border border-white/20 shadow-md">
                 AD
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-white leading-tight">Ayush Das</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-semibold text-white leading-tight">Ayush Das</h4>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-ember/20 text-ember-bright border border-ember/30 uppercase tracking-wider">
+                    Claude AI
+                  </span>
+                </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[11px] text-ash">Online • AI Assistant</span>
+                  <span className="text-[11px] text-ash">Online • Ready for any question</span>
                 </div>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-ash hover:text-white flex items-center justify-center transition-colors"
-              aria-label="Close chat"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowKeyModal(!showKeyModal)}
+                title="Configure Claude API Key"
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-ash hover:text-white flex items-center justify-center transition-colors"
+                aria-label="API Settings"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-ash hover:text-white flex items-center justify-center transition-colors"
+                aria-label="Close chat"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
           </div>
+
+          {/* Optional API Key Configuration Panel */}
+          {showKeyModal && (
+            <div className="p-3.5 bg-graphite border-b border-white/10 text-xs space-y-2 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between text-white font-medium">
+                <span>Claude API Key (Anthropic)</span>
+                <span className="text-[10px] text-ash">Server-side env also supported</span>
+              </div>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-ant-api03-..."
+                className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-iron focus:outline-none focus:border-ember/60 font-mono"
+              />
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => saveApiKey("")}
+                  className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-ash text-[11px]"
+                >
+                  Clear Key
+                </button>
+                <button
+                  type="button"
+                  onClick={() => saveApiKey(apiKey)}
+                  className="px-3 py-1 rounded bg-ember hover:bg-ember-bright text-white text-[11px] font-semibold"
+                >
+                  Save Key
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Messages Body */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin scrollbar-thumb-white/10">
@@ -242,10 +288,10 @@ export default function ChatBox() {
                 className={`flex flex-col ${m.sender === "user" ? "items-end" : "items-start"}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed ${
+                  className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap ${
                     m.sender === "user"
                       ? "bg-ember text-white rounded-tr-none shadow-md"
-                      : "bg-white/10 text-white/95 rounded-tl-none border border-white/10 shadow-sm"
+                      : "bg-white/[0.08] text-white/95 rounded-tl-none border border-white/10 shadow-sm"
                   }`}
                 >
                   <p>{m.text}</p>
@@ -266,15 +312,21 @@ export default function ChatBox() {
                     </div>
                   )}
                 </div>
-                <span className="text-[10px] text-ash/80 mt-1 px-1">{m.time}</span>
+                <div className="flex items-center gap-2 text-[10px] text-ash/70 mt-1 px-1">
+                  <span>{m.time}</span>
+                  {m.source?.startsWith("claude") && (
+                    <span className="text-[9px] text-ember-bright/90 font-mono">Claude 3.5</span>
+                  )}
+                </div>
               </div>
             ))}
 
             {isTyping && (
-              <div className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-white/5 border border-white/10 w-fit">
-                <span className="w-1.5 h-1.5 rounded-full bg-ash animate-bounce" />
-                <span className="w-1.5 h-1.5 rounded-full bg-ash animate-bounce [animation-delay:0.2s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-ash animate-bounce [animation-delay:0.4s]" />
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 w-fit">
+                <span className="text-[11px] text-ash">Claude is thinking</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-ember animate-bounce" />
+                <span className="w-1.5 h-1.5 rounded-full bg-ember animate-bounce [animation-delay:0.2s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-ember animate-bounce [animation-delay:0.4s]" />
               </div>
             )}
 
@@ -296,19 +348,19 @@ export default function ChatBox() {
           </div>
 
           {/* Input Footer */}
-          <div className="p-3 bg-white/5 border-t border-white/10 flex items-center gap-2">
+          <div className="p-3 bg-white/[0.04] border-t border-white/10 flex items-center gap-2">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything or leave a note..."
+              placeholder="Ask anything (Ayush, coding, AI, math...)"
               className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-ash/60 focus:outline-none focus:border-ember/60 transition-colors"
             />
             <button
               type="button"
               onClick={() => handleSend()}
-              disabled={!input.trim()}
+              disabled={!input.trim() || isTyping}
               className="w-9 h-9 rounded-xl bg-ember hover:bg-ember-bright disabled:opacity-40 disabled:hover:bg-ember text-white flex items-center justify-center transition-all shrink-0"
               aria-label="Send message"
             >
