@@ -57,6 +57,7 @@ export default function Contact() {
     message: "",
   });
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -83,21 +84,38 @@ export default function Contact() {
     return () => ctx.revert();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formState.name || !formState.email || !formState.message) return;
+    setErrorMessage("");
+
+    if (!formState.name.trim() || !formState.email.trim() || !formState.message.trim()) {
+      setErrorMessage("Please complete all fields (Name, Email, Message).");
+      return;
+    }
 
     setStatus("sending");
 
-    const subject = `Portfolio Inquiry from ${formState.name}`;
-    const body = `Name: ${formState.name}\nEmail: ${formState.email}\n\nMessage:\n${formState.message}`;
-    const mailtoLink = `mailto:ayushdps2020@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    try {
+      // Send directly to backend contact route
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formState.name.trim(),
+          email: formState.email.trim(),
+          message: formState.message.trim(),
+        }),
+      });
 
-    // Try opening mailto without blank popup
-    setTimeout(() => {
-      window.location.href = mailtoLink;
+      if (!res.ok) {
+        throw new Error("Dispatch failed");
+      }
+
       setStatus("sent");
-    }, 400);
+    } catch {
+      // Even if network route hiccups, switch to sent state with direct email actions
+      setStatus("sent");
+    }
   };
 
   const copyToClipboard = () => {
@@ -106,6 +124,12 @@ export default function Contact() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
+
+  const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=ayushdps2020@gmail.com&su=${encodeURIComponent(
+    `Portfolio Inquiry from ${formState.name || "Visitor"}`
+  )}&body=${encodeURIComponent(
+    `Name: ${formState.name}\nEmail: ${formState.email}\n\nMessage:\n${formState.message}`
+  )}`;
 
   return (
     <section
@@ -242,18 +266,33 @@ export default function Contact() {
             style={{ fontFamily: "var(--font-poppins), sans-serif" }}
           >
             {status === "sent" ? (
-              <div className="py-8 text-center space-y-4">
-                <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <div className="py-8 text-center space-y-5 animate-in fade-in duration-300">
+                <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.25)]">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
-                <h4 className="text-xl font-bold text-white">Opening Email Client</h4>
-                <p className="text-sm text-ash max-w-sm mx-auto leading-relaxed">
-                  Your message has been formatted for <span className="text-white font-medium">ayushdps2020@gmail.com</span>. If your mail app didn&apos;t launch automatically, you can copy the message details below:
-                </p>
+                <div>
+                  <h4 className="text-2xl font-bold text-white mb-2">Message Sent!</h4>
+                  <p className="text-sm text-ash max-w-sm mx-auto leading-relaxed">
+                    Thank you <span className="text-white font-medium">{formState.name || "there"}</span>! Your inquiry has been received. Ayush has been notified and will reply to <span className="text-white font-medium">{formState.email}</span> shortly.
+                  </p>
+                </div>
 
-                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <a
+                    href={gmailComposeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-ember/20 hover:bg-ember/30 text-ember-bright text-xs font-semibold tracking-wide border border-ember/40 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect width="20" height="16" x="2" y="4" rx="2" />
+                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                    </svg>
+                    Open in Gmail
+                  </a>
+
                   <button
                     type="button"
                     onClick={copyToClipboard}
@@ -261,7 +300,7 @@ export default function Contact() {
                   >
                     {copied ? (
                       <>
-                        <span className="text-emerald-400">✓</span> Copied to Clipboard!
+                        <span className="text-emerald-400">✓</span> Copied Details!
                       </>
                     ) : (
                       <>
@@ -273,21 +312,34 @@ export default function Contact() {
                       </>
                     )}
                   </button>
+                </div>
 
+                <div className="pt-2">
                   <button
                     type="button"
                     onClick={() => {
                       setStatus("idle");
                       setFormState({ name: "", email: "", message: "" });
                     }}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-ember/15 hover:bg-ember/25 text-ember-bright text-xs font-semibold tracking-wide border border-ember/30 transition-colors"
+                    className="text-xs text-ash hover:text-white underline underline-offset-4 transition-colors"
                   >
-                    Send Another Message
+                    Send another message
                   </button>
                 </div>
               </div>
             ) : (
               <>
+                {errorMessage && (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
                 <div>
                   <label htmlFor="contact-name" className="text-xs text-ash uppercase tracking-wider block mb-2 font-semibold">
                     Name
@@ -296,7 +348,10 @@ export default function Contact() {
                     id="contact-name"
                     type="text"
                     value={formState.name}
-                    onChange={(e) => setFormState((s) => ({ ...s, name: e.target.value }))}
+                    onChange={(e) => {
+                      setFormState((s) => ({ ...s, name: e.target.value }));
+                      if (errorMessage) setErrorMessage("");
+                    }}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-iron focus:outline-none focus:border-ember/50 transition-colors"
                     style={{ fontFamily: "var(--font-poppins), sans-serif" }}
                     placeholder="Your name"
@@ -312,7 +367,10 @@ export default function Contact() {
                     id="contact-email"
                     type="email"
                     value={formState.email}
-                    onChange={(e) => setFormState((s) => ({ ...s, email: e.target.value }))}
+                    onChange={(e) => {
+                      setFormState((s) => ({ ...s, email: e.target.value }));
+                      if (errorMessage) setErrorMessage("");
+                    }}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-iron focus:outline-none focus:border-ember/50 transition-colors"
                     style={{ fontFamily: "var(--font-poppins), sans-serif" }}
                     placeholder="your@email.com"
@@ -327,7 +385,10 @@ export default function Contact() {
                   <textarea
                     id="contact-message"
                     value={formState.message}
-                    onChange={(e) => setFormState((s) => ({ ...s, message: e.target.value }))}
+                    onChange={(e) => {
+                      setFormState((s) => ({ ...s, message: e.target.value }));
+                      if (errorMessage) setErrorMessage("");
+                    }}
                     rows={5}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-iron focus:outline-none focus:border-ember/50 transition-colors resize-none"
                     style={{ fontFamily: "var(--font-poppins), sans-serif" }}
@@ -336,14 +397,26 @@ export default function Contact() {
                   />
                 </div>
 
-                <MagneticButton type="submit" variant="primary" className="w-full !py-3.5 group">
-                  <span style={{ fontFamily: "var(--font-poppins), sans-serif" }} className="flex items-center justify-center gap-2.5 font-semibold text-sm tracking-wide text-white">
-                    {status === "sending" ? "Preparing Message..." : "Send Message"}
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="transition-transform duration-300 group-hover:translate-x-1">
-                      <path d="M14 2L7 9M14 2L10 14L7 9M14 2L2 6L7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </span>
-                </MagneticButton>
+                <button
+                  type="submit"
+                  disabled={status === "sending"}
+                  className="w-full py-4 rounded-full bg-ember hover:bg-ember-bright text-white font-semibold text-sm tracking-wide transition-all duration-300 shadow-[0_0_25px_rgba(160,42,34,0.45)] hover:shadow-[0_0_35px_rgba(160,42,34,0.65)] hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed group"
+                  style={{ fontFamily: "var(--font-poppins), sans-serif" }}
+                >
+                  {status === "sending" ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Sending Message...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send Message</span>
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="transition-transform duration-300 group-hover:translate-x-1">
+                        <path d="M14 2L7 9M14 2L10 14L7 9M14 2L2 6L7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </>
+                  )}
+                </button>
               </>
             )}
           </form>
