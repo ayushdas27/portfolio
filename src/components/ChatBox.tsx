@@ -18,9 +18,9 @@ const INITIAL_MESSAGES: Message[] = [
   {
     id: "welcome-1",
     sender: "bot",
-    text: "Hi there! 👋 I'm Ayush's AI Assistant, powered by Claude. Feel free to ask about Ayush's projects (Agro Twin, Lunar Align, Urban Mobility), research, skills, or any out-of-the-box coding or technical questions!",
+    text: "Hi there! 👋 I'm Ayush's AI Assistant. Feel free to ask about Ayush's projects (Agro Twin, Lunar Align, Urban Mobility), research, skills, or any out-of-the-box coding or technical questions!",
     time: "Just now",
-    source: "claude-sonnet",
+    source: "portfolio-assistant",
   },
 ];
 
@@ -40,7 +40,6 @@ export default function ChatBox() {
   const [isTyping, setIsTyping] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [showKeyModal, setShowKeyModal] = useState(false);
-  const [activeEngine, setActiveEngine] = useState<string>("AI");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load custom API key from localStorage if saved
@@ -109,11 +108,6 @@ export default function ChatBox() {
       }
 
       const data = await res.json();
-      if (data.source?.startsWith("gemini")) {
-        setActiveEngine("Gemini AI");
-      } else if (data.source?.startsWith("claude")) {
-        setActiveEngine("Claude AI");
-      }
 
       const botMessage: Message = {
         id: `bot-${Date.now()}`,
@@ -166,7 +160,7 @@ export default function ChatBox() {
         {!isOpen && (
           <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-graphite/95 border border-white/10 text-xs text-white shadow-xl backdrop-blur-md animate-fade-in pointer-events-none">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-medium">Claude AI Assistant</span>
+            <span className="font-medium">AI Assistant</span>
           </div>
         )}
 
@@ -207,7 +201,7 @@ export default function ChatBox() {
         <section
           className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[410px] max-h-[620px] h-[550px] rounded-2xl bg-[#0a0a0d]/95 border border-white/15 shadow-2xl backdrop-blur-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300"
           style={{ fontFamily: "var(--font-poppins), sans-serif" }}
-          aria-label="Ayush Das Claude AI Assistant"
+          aria-label="Ayush Das AI Assistant"
         >
           {/* Header */}
           <div className="px-5 py-3.5 bg-white/[0.04] border-b border-white/10 flex items-center justify-between">
@@ -222,9 +216,6 @@ export default function ChatBox() {
               <div>
                 <div className="flex items-center gap-2">
                   <h4 className="text-sm font-semibold text-white leading-tight">Ayush Das</h4>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-ember/20 text-ember-bright border border-ember/30 uppercase tracking-wider">
-                    {activeEngine}
-                  </span>
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -328,16 +319,13 @@ export default function ChatBox() {
                 </div>
                 <div className="flex items-center gap-2 text-[10px] text-ash/70 mt-1 px-1">
                   <span>{m.time}</span>
-                  {m.source?.startsWith("claude") && (
-                    <span className="text-[9px] text-ember-bright/90 font-mono">Claude 3.5</span>
-                  )}
                 </div>
               </div>
             ))}
 
             {isTyping && (
               <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 w-fit">
-                <span className="text-[11px] text-ash">Claude is thinking</span>
+                <span className="text-[11px] text-ash">Thinking</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-ember animate-bounce" />
                 <span className="w-1.5 h-1.5 rounded-full bg-ember animate-bounce [animation-delay:0.2s]" />
                 <span className="w-1.5 h-1.5 rounded-full bg-ember animate-bounce [animation-delay:0.4s]" />
