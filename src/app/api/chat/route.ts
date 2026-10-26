@@ -68,109 +68,82 @@ function getSmartFallback(query: string): string {
   return `Thanks for asking! I'm Ayush's AI Assistant. Ayush specializes in AI/ML, computer vision, and software engineering at SRMIST. Feel free to ask about his projects (Agro Twin, Lunar Align, Urban Mobility), his tech stack, or connect with him at ayushdps2020@gmail.com!`;
 }
 
-// Call Google Gemini API
-async function callGemini(apiKey: string, messages: any[], lastUserMsg: string) {
-  // Ensure Gemini multiturn alternates between 'user' and 'model'
-  const contents: any[] = [];
-  for (const m of messages) {
-    const role = m.role === "assistant" || m.sender === "bot" ? "model" : "user";
-    const text = (m.content || m.text || "").trim();
-    if (!text) continue;
+// Call Ollama API (supports both native Ollama and OpenAI-compatible endpoints)
+async function callOllama(baseUrl: string, messages: any[], apiKey?: string) {
+  const formattedMessages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...messages.map((m) => ({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: m.content,
+    })),
+  ];
 
-    if (contents.length > 0 && contents[contents.length - 1].role === role) {
-      contents[contents.length - 1].parts.push({ text });
-    } else {
-      contents.push({ role, parts: [{ text }] });
-    }
+  const cleanUrl = baseUrl.replace(/\/+$/, "");
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const key = apiKey || process.env.OLLAMA_API_KEY;
+  if (key && key.trim()) {
+    headers["Authorization"] = `Bearer ${key.trim()}`;
   }
 
-  // Ensure first turn is from user
-  while (contents.length > 0 && contents[0].role !== "user") {
-    contents.shift();
-  }
-
-  if (contents.length === 0) {
-    contents.push({ role: "user", parts: [{ text: lastUserMsg || "Hello" }] });
-  }
-
-  const payload = {
-    system_instruction: {
-      parts: [{ text: SYSTEM_PROMPT }],
-    },
-    contents: contents,
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 1024,
-    },
-  };
-
-  // Tested working models for Google AI Studio
-  const models = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-pro-latest"];
+  // Try models in order of preference
+  const configuredModel = process.env.OLLAMA_MODEL?.trim();
+  const models = [
+    configuredModel || "llama3.1",
+    "llama3",
+    "mistral",
+    "gemma2",
+  ].filter(Boolean);
 
   for (const model of models) {
+    // 1. Try native Ollama endpoint (/api/chat)
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (res.ok) {
-        const data = await res.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          return { text, model: `gemini (${model})` };
-        }
-      } else {
-        const errJson = await res.json().catch(() => ({}));
-        console.warn(`Gemini ${model} HTTP ${res.status}:`, errJson);
-      }
-    } catch (e) {
-      console.warn(`Gemini model ${model} attempt failed:`, e);
-    }
-  }
-
-  return null;
-}
-
-// Call Anthropic Claude API
-async function callClaude(apiKey: string, messages: any[]) {
-  const formattedMessages = messages.map((m) => ({
-    role: m.role === "assistant" ? "assistant" : "user",
-    content: m.content,
-  }));
-
-  const models = ["claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"];
-
-  for (const model of models) {
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch(`${cleanUrl}/api/chat`, {
         method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           model,
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
           messages: formattedMessages,
+          stream: false,
+          options: {
+            temperature: 0.7,
+            num_predict: 1024,
+          },
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        const text = data.content?.[0]?.text;
+        const text = data.message?.content;
         if (text) {
-          return { text, model: `claude (${model})` };
+          return { text, model: `ollama (${model})` };
+        }
+      }
+    } catch {
+      // Ignore and try /v1/chat/completions fallback
+    }
+
+    // 2. Try OpenAI-compatible endpoint (/v1/chat/completions)
+    try {
+      const res = await fetch(`${cleanUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: formattedMessages,
+          temperature: 0.7,
+          max_tokens: 1024,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (text) {
+          return { text, model: `ollama (${model})` };
         }
       }
     } catch (e) {
-      console.warn(`Claude model ${model} attempt failed:`, e);
+      console.warn(`Ollama ${model} attempt failed:`, e);
     }
   }
 
@@ -194,37 +167,19 @@ export async function POST(req: Request) {
     const lastUserMsg =
       messages.filter((m: any) => m.role === "user").pop()?.content || "";
 
-    // 1. Try Google Gemini API if key is present (starts with AQ. or AIzaSy or set in env)
-    const geminiKey =
-      clientKey && (clientKey.startsWith("AIzaSy") || clientKey.startsWith("AQ."))
-        ? clientKey
-        : process.env.GEMINI_API_KEY;
+    // 1. Try Ollama API
+    const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+    const ollamaKey = clientKey || process.env.OLLAMA_API_KEY;
 
-    if (geminiKey) {
-      const geminiResult = await callGemini(geminiKey, messages, lastUserMsg);
-      if (geminiResult) {
-        return NextResponse.json({
-          reply: geminiResult.text,
-          source: geminiResult.model,
-        });
-      }
+    const ollamaResult = await callOllama(ollamaUrl, messages, ollamaKey);
+    if (ollamaResult) {
+      return NextResponse.json({
+        reply: ollamaResult.text,
+        source: ollamaResult.model,
+      });
     }
 
-    // 2. Try Anthropic Claude API if key is present
-    const claudeKey =
-      (clientKey && clientKey.startsWith("sk-ant")) ? clientKey : process.env.ANTHROPIC_API_KEY;
-
-    if (claudeKey) {
-      const claudeResult = await callClaude(claudeKey, messages);
-      if (claudeResult) {
-        return NextResponse.json({
-          reply: claudeResult.text,
-          source: "claude",
-        });
-      }
-    }
-
-    // 3. Fallback to smart knowledge assistant
+    // 2. Fallback to smart knowledge assistant
     return NextResponse.json({
       reply: getSmartFallback(lastUserMsg),
       source: "assistant",

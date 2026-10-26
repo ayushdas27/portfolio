@@ -38,30 +38,7 @@ export default function ChatBox() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [showKeyModal, setShowKeyModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Load custom API key from localStorage if saved
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedKey = localStorage.getItem("ayush_portfolio_ai_key") || localStorage.getItem("ayush_portfolio_claude_key") || "";
-      setApiKey(savedKey);
-    }
-  }, []);
-
-  const saveApiKey = (key: string) => {
-    setApiKey(key);
-    if (typeof window !== "undefined") {
-      if (key) {
-        localStorage.setItem("ayush_portfolio_ai_key", key);
-      } else {
-        localStorage.removeItem("ayush_portfolio_ai_key");
-        localStorage.removeItem("ayush_portfolio_claude_key");
-      }
-    }
-    setShowKeyModal(false);
-  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -90,7 +67,7 @@ export default function ChatBox() {
     setIsTyping(true);
 
     try {
-      // Call backend API route connected to Claude
+      // Call backend API route connected to Ollama
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -99,7 +76,6 @@ export default function ChatBox() {
             role: m.sender === "user" ? "user" : "assistant",
             content: m.text,
           })),
-          apiKey: apiKey.trim() || undefined,
         }),
       });
 
@@ -227,19 +203,6 @@ export default function ChatBox() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setShowKeyModal(!showKeyModal)}
-                title="Configure Gemini or Claude API Key"
-                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-ash hover:text-white flex items-center justify-center transition-colors"
-                aria-label="API Settings"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setIsOpen(false)}
                 className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-ash hover:text-white flex items-center justify-center transition-colors"
                 aria-label="Close chat"
@@ -251,39 +214,6 @@ export default function ChatBox() {
               </button>
             </div>
           </div>
-
-          {/* Optional API Key Configuration Panel */}
-          {showKeyModal && (
-            <div className="p-3.5 bg-graphite border-b border-white/10 text-xs space-y-2 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between text-white font-medium">
-                <span>Gemini or Claude API Key</span>
-                <span className="text-[10px] text-ash">Loaded from .env automatically</span>
-              </div>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="AIzaSy... (Gemini) or sk-ant... (Claude)"
-                className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-iron focus:outline-none focus:border-ember/60 font-mono"
-              />
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => saveApiKey("")}
-                  className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-ash text-[11px]"
-                >
-                  Clear Key
-                </button>
-                <button
-                  type="button"
-                  onClick={() => saveApiKey(apiKey)}
-                  className="px-3 py-1 rounded bg-ember hover:bg-ember-bright text-white text-[11px] font-semibold"
-                >
-                  Save Key
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Messages Body */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin scrollbar-thumb-white/10">
