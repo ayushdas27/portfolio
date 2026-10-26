@@ -87,12 +87,15 @@ async function callOllama(baseUrl: string, messages: any[], apiKey?: string) {
 
   // Try models in order of preference
   const configuredModel = process.env.OLLAMA_MODEL?.trim();
+  const isCloud = baseUrl.includes("ollama.com");
   const models = [
-    configuredModel || "llama3.1",
-    "llama3",
+    configuredModel,
+    isCloud ? "gemma4:31b-cloud" : "llama3.1",
+    isCloud ? "gemma4:31b" : "llama3",
+    "gemma4",
+    "llama3.1",
     "mistral",
-    "gemma2",
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
 
   for (const model of models) {
     // 1. Try native Ollama endpoint (/api/chat)
@@ -168,8 +171,13 @@ export async function POST(req: Request) {
       messages.filter((m: any) => m.role === "user").pop()?.content || "";
 
     // 1. Try Ollama API
-    const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+    let ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
     const ollamaKey = clientKey || process.env.OLLAMA_API_KEY;
+
+    // If an API key is provided and URL is localhost or default, route to Ollama Cloud
+    if (ollamaKey && (ollamaUrl.includes("localhost") || ollamaUrl.includes("127.0.0.1"))) {
+      ollamaUrl = "https://ollama.com";
+    }
 
     const ollamaResult = await callOllama(ollamaUrl, messages, ollamaKey);
     if (ollamaResult) {
